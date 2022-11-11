@@ -7,6 +7,7 @@ public class Block : MonoBehaviour
     private GridManager gridManager;
     private Renderer BRenderer;
     private Color setColor;
+    public int TileID = -1;
     // Start is called before the first frame update
     void Awake()
     {
