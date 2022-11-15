@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class Edge
@@ -35,7 +36,7 @@ public class GridManager : MonoBehaviour
     public LineRenderer LineRenderer;
 
     // Storage
-    private List<Edge> edges = new List<Edge>();
+    private List<Edge> mEdges = new List<Edge>();
     private List<Block> EdgeBlocks = new List<Block>();
     private bool gridDrawn = false;
     List<Vector3> points = new List<Vector3>();
@@ -61,7 +62,7 @@ public class GridManager : MonoBehaviour
 
         if (Input.GetKeyDown(KeyCode.E))
         {
-            ArrangeEdges();
+            arrangedPoints = GetArrangedVertices(mEdges);
             DrawDebugLines();
         }
     }
@@ -98,7 +99,7 @@ public class GridManager : MonoBehaviour
         }
 
         EdgeBlocks.Clear();
-        edges.Clear();
+        mEdges.Clear();
     }
     public void AddBlock(Block block)
     {
@@ -113,7 +114,7 @@ public class GridManager : MonoBehaviour
 
     public void ComputeEdge()
     {
-        edges.Clear();
+        mEdges.Clear();
 
         if (EdgeBlocks.Count > 0)
         {
@@ -147,9 +148,9 @@ public class GridManager : MonoBehaviour
     {
         int indexToRemove = -1;
 
-        for(int i = 0; i < edges.Count; i++)
+        for(int i = 0; i < mEdges.Count; i++)
         {
-            if(edges[i].edgeEquals(e))
+            if(mEdges[i].edgeEquals(e))
             {
                 indexToRemove = i;
                 break;
@@ -158,90 +159,85 @@ public class GridManager : MonoBehaviour
 
         if(indexToRemove > -1)
         {
-            edges.RemoveAt(indexToRemove);
+            mEdges.RemoveAt(indexToRemove);
         }
         else
         {
-            edges.Add(e);
+            mEdges.Add(e);
         }
     }
-    public void ArrangeEdges()
+
+    public List<Vector3> GetArrangedVertices(List<Edge> gridEdges)
     {
-        if (edges.Count > 0)
+        if(gridEdges == null || gridEdges.Count == 0)
         {
-            arrangedPoints.Add(edges[0].pointA);
-            Vector3 startpoint = edges[0].pointB;
-            Edge currentEdge = edges[0];
-            edges.RemoveAt(0);
-            List<Edge> multipleEdges = new List<Edge>();
-
-            while (edges.Count > 0)
-            {
-                int indexToRemove = -1;
-                multipleEdges.Clear();
-
-                for (int i = 0; i < edges.Count; i++)
-                {
-                    if (startpoint == edges[i].pointA || startpoint == edges[i].pointB)
-                    {
-                        multipleEdges.Add(edges[i]);
-                    }
-
-                    if (multipleEdges.Count == 3) // skip the loop if max 3 edges found from a point 
-                        break;
-                }
-
-                // for diagonal tiles case
-                if(multipleEdges.Count > 1)
-                {
-                    for(int edgeIndex = 0; edgeIndex < multipleEdges.Count;)
-                    {
-                        if (multipleEdges[edgeIndex].TileID == currentEdge.TileID)
-                        {
-                            multipleEdges.RemoveAt(edgeIndex);
-                            continue;
-                        }
-
-                        Vector3 currentEdgeVector = currentEdge.pointB - currentEdge.pointA;
-                        Vector3 nextEdgeVector = multipleEdges[edgeIndex].pointB - multipleEdges[edgeIndex].pointA;
-
-                        if (Vector3.Dot(currentEdgeVector, nextEdgeVector) != 0)
-                        {
-                            multipleEdges.RemoveAt(edgeIndex);
-                            continue;
-                        }
-
-                        edgeIndex++;
-                    }
-                }
-
-                if(multipleEdges.Count == 1)
-                {
-                    if (startpoint == multipleEdges[0].pointA)
-                    {
-                        arrangedPoints.Add(multipleEdges[0].pointA);
-                        startpoint = multipleEdges[0].pointB;
-                        currentEdge = multipleEdges[0];
-                        edges.Remove(multipleEdges[0]);
-                    }
-                    else if (startpoint == multipleEdges[0].pointB)
-                    {
-                        arrangedPoints.Add(multipleEdges[0].pointB);
-                        startpoint = multipleEdges[0].pointA;
-                        currentEdge = multipleEdges[0];
-                        edges.Remove(multipleEdges[0]);
-                    }
-                }
-                else
-                {
-                    Debug.LogError("GRID - INVALID EDGE");
-                    return;
-                }
-
-                if (indexToRemove > -1)
-                    edges.RemoveAt(indexToRemove);
-            }
+            return null;
         }
+
+        List<Vector3> arrangedVertices = new List<Vector3>();
+
+        List<Edge> edges = new List<Edge>(gridEdges);
+
+        Edge currentEdge = edges.First();
+		arrangedVertices.Add(currentEdge.pointA);
+		Vector3 currentVertex = currentEdge.pointB;
+		edges.RemoveAt(0);
+
+		while (edges.Count > 0)
+		{
+            int maxVertexConnectedEdges = 3; // excluding the current edge
+            int? nextEdgeIndex = null;
+
+			for (int i = 0; i < edges.Count; i++)
+			{
+				if (currentVertex == edges[i].pointA || currentVertex == edges[i].pointB)
+				{
+					Edge edge = edges[i];
+
+                    if(nextEdgeIndex == null)
+                    {
+                        nextEdgeIndex = i;
+                    }
+                    else if(edge.TileID != currentEdge.TileID)
+                    {
+                        Vector3 currentEdgeDirection = currentEdge.pointB - currentEdge.pointA;
+                        Vector3 nextEdgeDirection = edge.pointB - edge.pointA;
+
+                        if (Vector3.Dot(currentEdgeDirection, nextEdgeDirection) == 0)
+                        {
+                            nextEdgeIndex = i;
+                            break;
+                        }
+                    }
+
+                    maxVertexConnectedEdges--;
+
+                    if(maxVertexConnectedEdges <= 0)
+                    {
+                        break;
+                    }
+				}
+			}
+
+            Edge nextEdge = edges[nextEdgeIndex.Value];
+
+            if (currentVertex == nextEdge.pointA)
+			{
+                currentEdge = nextEdge;
+				arrangedVertices.Add(currentEdge.pointA);
+				currentVertex = currentEdge.pointB;
+			}
+			else if (currentVertex == nextEdge.pointB)
+			{
+                currentEdge = nextEdge;
+				arrangedVertices.Add(currentEdge.pointB);
+				currentVertex = currentEdge.pointA;
+			}
+
+			edges.RemoveAt(nextEdgeIndex.Value);
+		}
+
+        return arrangedVertices;
     }
 
     public void DrawDebugLines()
